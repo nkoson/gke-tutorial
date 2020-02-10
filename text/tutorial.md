@@ -6,6 +6,8 @@ That's when I stumbled upon a [great article](https://charlieegan3.com/posts/201
 
 I have composed this article as a step-by-step tutorial. Based on my own experience in setting up a cluster on a fresh GCP account, I try to cover every topic from configuring the infrastructure to serving HTTP(S) requests from inside the cluster. Please notice, that I did this mainly to educate myself on the subject, so critique and corrections are wholeheartedly welcome.
 
+We'll be using Terraform.io to manage our cloud infrastructure, so go ahead and register an account, if you haven't already. You'll obviously need access to a Google Cloud Platform account, as well.
+
 Let’s get going by creating a new project on the GCP console:
 
 ##### Project selector (top bar) -> New Project -> Enter name -> Create
@@ -22,7 +24,7 @@ Next, we’ll need to create a key for Terraform to authenticate with GCP:
 
 The key that we just downloaded can be used in our terraform.io console as an environment variable, or directly from local disk when running Terraform CLI commands. The former requires newlines edited out of the JSON file and the contents added as `GOOGLE_CLOUD_KEYFILE_JSON` in our terraform.io workspace:
 
-##### Workspaces -> \<workspace\> -> Variables -> Environment Variables
+##### Workspaces -> (select a workspace) -> Variables -> Environment Variables
 
 Make sure you set the value as “sensitive / write only”, if you decide to store the key in your terraform.io workspace.
 As stated above, it’s also possible to read the key from your local drive by adding the following in the Terraform provider resource:
@@ -112,7 +114,7 @@ Understanding the basic building blocks of our network, there are a couple more 
 Part of our router configuration, Cloud NAT grants our VM instances Internet connectivity without external IP addresses. This allows for a secure way of provisioning our _kubernetes_ nodes, as we can download container images through NAT without exposing the machines to public Internet.
 In our [definition](https://github.com/nkoson/gke-tutorial/blob/master/gke/network.tf#L40), we set the router to allow automatically allocated addresses and to operate only on our subnetwork, which we set up earlier.
 
-OK, our NAT gives us outbound connectivity, but we’ll need a inbound address for our cheap-o load balancer / ingress / certificate manager all-in-one contraption, **Traefik**. We’ll talk about the application in a while, but let’s first make sure that our external static IP addresses are in check:
+OK, our NAT gives us outbound connectivity, but we’ll need a inbound address for our cheap-o load balancer / ingress / certificate manager all-in-one contraption, **traefik**. We’ll talk about the application in a while, but let’s first make sure that our external static IP addresses are in check:
 
 ##### Networking -> VPC network -> External IP addresses
 
@@ -123,7 +125,7 @@ This is a good opportunity to take a look at our firewall settings:
 
 ##### Networking -> VPC network -> Firewall rules
 
-We have added a single custom rule, which lets inbound traffic through to our ingress node. Notice, how we specify a target for the rule to match only with instances that carry the ingress-pool tag. After all, we only need HTTP(S) traffic to land on our internal load balancer (_Traefik_). The custom firewall rule is defined [here](https://github.com/nkoson/gke-tutorial/blob/master/gke/network.tf#L76).
+We have added a single custom rule, which lets inbound traffic through to our ingress node. Notice, how we specify a target for the rule to match only with instances that carry the ingress-pool tag. After all, we only need HTTP(S) traffic to land on our internal load balancer (_traefik_). The custom firewall rule is defined [here](https://github.com/nkoson/gke-tutorial/blob/master/gke/network.tf#L76).
 
 Lest we forget, one more thing: We'll be using the CLI tool **gcloud** to get our _kubernetes_ credentials up and running in the next step. Of course, _gcloud_ needs a configuration of its own, as well, so let's get it over with:
 
@@ -135,7 +137,7 @@ Answer truthfully to the questions and you shall be rewarded with a good gcloud 
 
 ## Kubernetes
 
-Our cloud infrastructure setup is now done and we're ready to run some applications in the cluster. In this tutorial, we'll be using **kubectl** to manage our kubernetes cluster. To access the cluster on GCP, kubectl needs a valid config, which we can quickly fetch by running:
+Our cloud infrastructure setup is now done and we're ready to run some applications in the cluster. In this tutorial, we'll be using **kubectl** to manage our _kubernetes_ cluster. To access the cluster on GCP, kubectl needs a valid config, which we can quickly fetch by running:
 
 ```shell
 gcloud container clusters get-credentials <cluster> --region <region>
@@ -252,7 +254,7 @@ Let's create the deployment for _kubeip_ by navigating to `k8s/kubeip` and runni
 kubectl create --save-config -f deployment.yaml
 ```
 
-We define `kube-system` as the [target namespace](https://github.com/nkoson/gke-tutorial/blob/master/k8s/kubeip/deployment.yaml#L9) for _kubeip_, since we want it to communicate directly with the _kubernetes_ master and find out when a newly created node needs a static address. Using a [nodeselector](https://github.com/nkoson/gke-tutorial/blob/master/k8s/kubeip/deployment.yaml#L21), we force _kubeip_ to deploy on a _web-pool_ node, just like we did with _nginx_ earlier.
+We define `kube-system` as the [target namespace](https://github.com/nkoson/gke-tutorial/blob/master/k8s/kubeip/deployment.yaml#L9) for _kubeip_, since we want it to communicate directly with the _kubernetes_ master and find out when a newly created node needs a static address. Using a [nodeSelector](https://github.com/nkoson/gke-tutorial/blob/master/k8s/kubeip/deployment.yaml#L21), we force _kubeip_ to deploy on a _web-pool_ node, just like we did with _nginx_ earlier.
 
 Next in the config we define a bunch of environment variables, which we bind to values in a _ConfigMap_. We instruct our deployment to fetch GCP service account credentials from a _kubernetes_ _secret_. Through the [service account](https://github.com/nkoson/gke-tutorial/blob/master/k8s/kubeip/deployment.yaml#L70), _kubeip_ can have the required access rights to make changes (assign IPs) in GCP.
 
@@ -309,6 +311,7 @@ kubectl create --save-config -f deployment.yaml
 
 Using a [nodeSelector](https://github.com/nkoson/gke-tutorial/blob/master/k8s/traefik/deployment.yaml#L23) once again, we specify that we want _traefik_ to run on a machine that belongs to `ingress-pool`, which means that in our cluster, _traefik_ will sit on a different machine than _kubeip_ and _nginx_. The thought behind this is that both of our machines are unlikely to go down simultaneously. When `web-pool` goes down and is restarted, no problem; _traefik_ will find it in the cluster and resume routing connections normally.
 If our `ingress-pool` went down, the situation would be more severe, since we need our external IP bound to that machine. How else would our clients land on our web backend? Remember we don't have an external load balancer...
+
 Luckily, we have _kubeip_ which will detect the recently rebooted `ingress-pool` machine and assign our external IP back to it in no time. Crisis averted!
 
 There's a couple key things in our _traefik_ deployment that sets it apart from our other deployments. First is [hostNetwork](https://github.com/nkoson/gke-tutorial/blob/master/k8s/traefik/deployment.yaml#L22) which we need for _traefik_ to listen on network interfaces of its host machine.
