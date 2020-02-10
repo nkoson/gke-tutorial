@@ -1,4 +1,4 @@
-[TL;DR: Run Kubernetes on two micro instances on GKE with no external load balancer to save all the moneys.]
+[TL;DR: Run Kubernetes on two micro instances on GKE without external load balancers. Cluster setup from scratch.]
 
 My excitement of running _kubernetes_ on Google Cloud Platform was quickly curbed by the realization that, despite Google's virtual machines starting at affordable price points, their network ingress is another story: Let's say you want to set up a simple cluster for your own personal projects, or a small business. At the time of writing, a couple of micro nodes running in Iowa will set you back $7.77/mo, but the only (officially marketed, AFAIK) method of getting traffic in is by using a load balancer - which start at whopping $18.26 for the first 5 forwarding rules. That is a deal breaker for me, since there are plenty of other cloud providers with better offerings to smaller players. 
 
@@ -159,7 +159,7 @@ kubectl scale --replicas=0 deployment/kube-dns-autoscaler --namespace=kube-syste
 kubectl scale --replicas=1 deployment/kube-dns --namespace=kube-system
 ```
 
-_kubernetes_ default-backend can go too. We'll be using **nginx** for this purpose:
+_kubernetes_ default-backend can go too. We'll be using __nginx__ for this purpose:
 
 ```shell
 kubectl scale --replicas=0 deployment/l7-default-backend --namespace=kube-system
@@ -176,7 +176,7 @@ After a few minutes, GCP had spun up a new instance from the _web-pool_ instance
 
 ### Deployments
 
-The cluster we're about to launch has three deployments: _nginx_ for serving web content, **kubeIP** for keeping our ingress node responsive and _Traefik_ which serves a dual purpose; routing incoming connections to _nginx_, plus handling SSL. We'll discuss each deployment next.
+The cluster we're about to launch has three deployments: _nginx_ for serving web content, __kubeIP__ for keeping our ingress node responsive and _traefik_ which serves a dual purpose; routing incoming connections to _nginx_, plus handling SSL. We'll discuss each deployment next.
 
 ### nginx-web
 
