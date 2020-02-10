@@ -1,0 +1,8 @@
+# define Traefik configuration
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  namespace: traefik
+  name: traefik-config
+data:
+  CF_API_EMAIL: your.email@goes.here

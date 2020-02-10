@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-web
+  namespace: nginx-web
+  labels:
+    app.kubernetes.io/name: nginx-web
+    app.kubernetes.io/part-of: nginx-web
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: nginx-web
+      app.kubernetes.io/part-of: nginx-web
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: nginx-web
+        app.kubernetes.io/part-of: nginx-web
+    spec:
+      nodeSelector:
+        cloud.google.com/gke-nodepool: web-pool
+      containers:
+        - name: "nginx-web"
+          image: eu.gcr.io/gke-tutorial-xxxxxx/nginx-web:latest
+          ports:
+            - name: http
+              containerPort: 80
+            - name: https
+              containerPort: 443
+          livenessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /health
+              port: 80
+              scheme: HTTP
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /health
+              port: 80
+              scheme: HTTP
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1

@@ -1,0 +1,74 @@
+#  We need to get RBAC permissions first with
+#  kubectl create clusterrolebinding cluster-admin-binding \
+#    --clusterrole cluster-admin --user `gcloud config list --format 'value(core.account)'`
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kubeip
+  namespace: kube-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kubeip
+  template:
+    metadata:
+      labels:
+        app: kubeip
+    spec:
+      priorityClassName: system-cluster-critical
+      nodeSelector:
+        cloud.google.com/gke-nodepool: web-pool
+      containers:
+        - name: "kubeip"
+          image: doitintl/kubeip:latest
+          imagePullPolicy: Always
+          volumeMounts:
+            - name: google-cloud-key
+              mountPath: /var/secrets/google
+          env:
+            - name: "KUBEIP_LABELKEY"
+              valueFrom:
+                configMapKeyRef:
+                  key: "KUBEIP_LABELKEY"
+                  name: "kubeip-config"
+            - name: "KUBEIP_LABELVALUE"
+              valueFrom:
+                configMapKeyRef:
+                  key: "KUBEIP_LABELVALUE"
+                  name: "kubeip-config"
+            - name: "KUBEIP_NODEPOOL"
+              valueFrom:
+                configMapKeyRef:
+                  key: "KUBEIP_NODEPOOL"
+                  name: "kubeip-config"
+            - name: "KUBEIP_FORCEASSIGNMENT"
+              valueFrom:
+                configMapKeyRef:
+                  key: "KUBEIP_FORCEASSIGNMENT"
+                  name: "kubeip-config"
+            - name: "KUBEIP_ADDITIONALNODEPOOLS"
+              valueFrom:
+                configMapKeyRef:
+                  key: "KUBEIP_ADDITIONALNODEPOOLS"
+                  name: "kubeip-config"
+            - name: "KUBEIP_TICKER"
+              valueFrom:
+                configMapKeyRef:
+                  key: "KUBEIP_TICKER"
+                  name: "kubeip-config"
+            - name: "KUBEIP_ALLNODEPOOLS"
+              valueFrom:
+                configMapKeyRef:
+                  key: "KUBEIP_ALLNODEPOOLS"
+                  name: "kubeip-config"
+
+            - name: GOOGLE_APPLICATION_CREDENTIALS
+              value: /var/secrets/google/kubeip-key.json
+      restartPolicy: Always
+      serviceAccountName: kubeip-serviceaccount
+      volumes:
+        - name: google-cloud-key
+          secret:
+            secretName: kubeip-key

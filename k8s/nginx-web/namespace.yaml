@@ -1,0 +1,6 @@
+kind: Namespace
+apiVersion: v1
+metadata:
+  name: nginx-web
+  labels:
+    name: nginx-web

@@ -1,0 +1,16 @@
+apiVersion: v1
+data:
+  KUBEIP_LABELKEY: "kubeip"
+  KUBEIP_LABELVALUE: "static-ingress"
+  KUBEIP_SELF_NODEPOOL: "web-pool"
+  KUBEIP_NODEPOOL: "ingress-pool"
+  KUBEIP_FORCEASSIGNMENT: "true"
+  KUBEIP_ADDITIONALNODEPOOLS: ""
+  KUBEIP_TICKER: "5"
+  KUBEIP_ALLNODEPOOLS: "false"
+kind: ConfigMap
+metadata:
+  labels:
+    app: kubeip
+  name: kubeip-config
+  namespace: kube-system

@@ -1,0 +1,83 @@
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: traefik-web
+  namespace: traefik
+  labels:
+    app.kubernetes.io/name: traefik-web
+    app.kubernetes.io/part-of: traefik-web
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: traefik-web
+      app.kubernetes.io/part-of: traefik-web
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: traefik-web
+        app.kubernetes.io/part-of: traefik-web
+    spec:
+      serviceAccountName: traefik-serviceaccount
+      hostNetwork: true
+      nodeSelector:
+        cloud.google.com/gke-nodepool: ingress-pool
+      tolerations:
+        - effect: NoExecute
+          key: ingress-pool
+          operator: Equal
+          value: "true"
+      #volumes:
+      #  - name: traefik-config
+      #    configMap:
+      #      name: traefik-config
+      containers:
+        - name: traefik
+          image: "traefik:latest"
+          #volumeMounts:
+          #  - mountPath: "/etc/traefik/config"
+          #    name: traefik-config
+          args:
+            - --entrypoints.web.address=:80
+            - --entrypoints.websecure.address=:443
+            - --entrypoints.ping.address=:10254
+            - --ping.entrypoint=ping
+            - --log.level=ERROR
+            - --providers.kubernetescrd
+            #- --certificatesresolvers.letsencrypt.acme.dnschallenge
+            #- --certificatesresolvers.letsencrypt.acme.dnschallenge.provider=cloudflare
+          ports:
+            - name: web
+              containerPort: 80
+            - name: websecure
+              containerPort: 443
+          env:
+          #  - name: "CF_API_EMAIL"
+          #    valueFrom:
+          #      configMapKeyRef:
+          #        key: "CF_API_EMAIL"
+          #        name: "traefik-config"
+          #  - name: "CF_API_KEY"
+          #    valueFrom:
+          #      secretKeyRef:
+          #        name: cloudflare-apikey-secret
+          #        key: apikey
+          livenessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /ping
+              port: 10254
+              scheme: HTTP
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /ping
+              port: 10254
+              scheme: HTTP
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1

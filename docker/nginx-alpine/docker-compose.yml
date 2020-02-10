@@ -1,0 +1,13 @@
+version: "3.7"
+
+services:
+  nginx-web:
+    privileged: true
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: nginx-web
+    ports:
+      - 80:80
+    volumes:
+      - ./build:/etc/nginx/html:rw

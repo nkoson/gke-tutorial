@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-web
+  namespace: nginx-web
+spec:
+  type: ClusterIP
+  ports:
+    - protocol: TCP
+      name: tcp-80
+      port: 80
+      targetPort: 80
+    - protocol: TCP
+      name: tcp-443
+      port: 443
+      targetPort: 443
+  selector:
+    app.kubernetes.io/name: nginx-web
+    app.kubernetes.io/part-of: nginx-web
