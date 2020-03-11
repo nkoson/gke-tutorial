@@ -16,6 +16,7 @@ This will create a nice empty project for us, which differs from the default sta
 We’ll start digging our rabbit hole by enabling the Compute Engine API, which we need to communicate with GCP using Terraform. We'll also enable the Service Usage API so that Terraform can enable services for us as we go forward.
 
 > APIs & Services -> API Library -> Compute Engine API -> Enable
+
 > APIs & Services -> API Library -> Service Usage API -> Enable
 
 Once the APIs have been initialized, we should find that GCP has generated a new service account for us. The aptly named Compute Engine default service account grants us remote access to the resources of our project.
