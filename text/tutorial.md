@@ -1,8 +1,8 @@
 [TL;DR: Run Kubernetes on two micro instances on GKE without external load balancers. Cluster setup from scratch.]
 
-My excitement of running _kubernetes_ on Google Cloud Platform was quickly curbed by the realization that, despite Google's virtual machines starting at affordable price points, their network ingress is another story: Let's say you want to set up a simple cluster for your own personal projects, or a small business. At the time of writing, a couple of micro nodes running in Iowa will set you back $7.77/mo, but the only (officially marketed, AFAIK) method of getting traffic in is by using a load balancer - which start at whopping $18.26 for the first 5 forwarding rules. That is a deal breaker for me, since there are plenty of other cloud providers with better offerings to smaller players. 
+My excitement of running _kubernetes_ on Google Cloud Platform was quickly curbed by the realization that, despite Google's virtual machines starting at affordable price points, their network ingress is another story: Let's say you want to set up a simple cluster for your own personal projects, or a small business. At the time of writing, a couple of micro nodes running in Iowa will set you back $7.77/mo, but the only (officially marketed, AFAIK) method of getting traffic in is by using a load balancer - which start at whopping $18.26 for the first 5 forwarding rules. That is a deal breaker for me, since there are plenty of other cloud providers with better offerings to smaller players.
 
-That's when I stumbled upon a [great article](https://charlieegan3.com/posts/2018-08-15-cheap-gke-cluster-zero-loadbalancers/) about running a GKE cluster without load balancers. With this newly incited motivation, I set out to create my GKE cluster - with the requirement of it being as cheap as possible while enjoying a key benefit of the cloud: being free of manual maintenance. 
+That's when I stumbled upon a [great article](https://charlieegan3.com/posts/2018-08-15-cheap-gke-cluster-zero-loadbalancers/) about running a GKE cluster without load balancers. With this newly incited motivation, I set out to create my GKE cluster - with the requirement of it being as cheap as possible while enjoying a key benefit of the cloud: being free of manual maintenance.
 
 I have composed this article as a step-by-step tutorial. Based on my own experience in setting up a cluster on a fresh GCP account, I try to cover every topic from configuring the infrastructure to serving HTTP(S) requests from inside the cluster. Please notice, that I did this mainly to educate myself on the subject, so critique and corrections are wholeheartedly welcome.
 
@@ -10,21 +10,22 @@ We'll be using Terraform.io to manage our cloud infrastructure, so go ahead and 
 
 Let’s get going by creating a new project on the GCP console:
 
-##### Project selector (top bar) -> New Project -> Enter name -> Create
+> Project selector (top bar) -> New Project -> Enter name -> Create
 
 This will create a nice empty project for us, which differs from the default starter project in that the newly created blank doesn’t come with any predefined API’s or service accounts.
-We’ll start digging our rabbit hole by enabling the Compute Engine API, which we need to communicate with GCP using Terraform.
+We’ll start digging our rabbit hole by enabling the Compute Engine API, which we need to communicate with GCP using Terraform. We'll also enable the Service Usage API so that Terraform can enable services for us as we go forward.
 
-##### APIs & Services -> API Library -> Compute Engine API -> Enable
+> APIs & Services -> API Library -> Compute Engine API -> Enable
+> APIs & Services -> API Library -> Service Usage API -> Enable
 
-Once the API has been initialized, we should find that GCP has generated a new service account for us. The aptly named Compute Engine default service account grants us remote access to the resources of our project.
+Once the APIs have been initialized, we should find that GCP has generated a new service account for us. The aptly named Compute Engine default service account grants us remote access to the resources of our project.
 Next, we’ll need to create a key for Terraform to authenticate with GCP:
 
-##### IAM & Admin -> Service accounts -> Compute Engine default service account -> Create key -> Create as JSON
+> IAM & Admin -> Service accounts -> Compute Engine default service account -> Create key -> Create as JSON
 
 The key that we just downloaded can be used in our terraform.io console as an environment variable, or directly from local disk when running Terraform CLI commands. The former requires newlines edited out of the JSON file and the contents added as `GOOGLE_CLOUD_KEYFILE_JSON` in our terraform.io workspace:
 
-##### Workspaces -> (select a workspace) -> Variables -> Environment Variables
+> Workspaces -> (select a workspace) -> Variables -> Environment Variables
 
 Make sure you set the value as “sensitive / write only”, if you decide to store the key in your terraform.io workspace.
 As stated above, it’s also possible to read the key from your local drive by adding the following in the Terraform provider resource:
@@ -40,9 +41,9 @@ In this tutorial, we’ll be using the latter of the two methods.
 
 While we’re here, it’s worth noting that the Compute Engine default service account doesn’t have the permissions to create new roles and assign IAM policies in the project. This is something that we will need later as part of our terraforming process, so let’s get it over with:
 
-##### IAM & admin -> edit Compute Engine default service account (pen icon) -> Add another role -> select "Role Administrator" -> Save
+> IAM & admin -> edit Compute Engine default service account (pen icon) -> Add another role -> select "Role Administrator" -> Save
 
-##### Add another role -> select "Project IAM Admin" -> Save
+> Add another role -> select "Project IAM Admin" -> Save
 
 We’re now ready to initialize Terraform and apply our configuration to the cloud.
 
@@ -73,7 +74,7 @@ module.cluster.google_container_node_pool.custom_nodepool["ingress-pool"]: Creat
 
 Once the dust has settled, it’s time to check the damage. We set out to configure a minimal cloud infrastructure for running a _kubernetes_ cluster, so let’s see how we’ve managed so far.
 
-##### Compute Engine -> VM Instances
+> Compute Engine -> VM Instances
 
 This page reveals that we now have two virtual machines running. These machines are part of node pools ingress-pool and web-pool. A node pool is a piece of configuration, which tells Google Container Engine (GKE) how and when to scale the machines in our cluster up or down. You can find the node pool definitions in [cluster.tf](https://github.com/nkoson/gke-tutorial/blob/master/cluster.tf#L32) and [node_pool.tf](https://github.com/nkoson/gke-tutorial/blob/master/gke/node_pool.tf#L1)
 
@@ -109,21 +110,21 @@ Also a secondary range in our subnet, the service range contains our _kubernetes
 
 Understanding the basic building blocks of our network, there are a couple more details that we need to grasp in order for this to make sense as a whole. The nodes in our cluster can communicate with each other on the subnet we just discussed, but what about incoming traffic? After all, we’ll need to not only accept incoming connections, but also download container images from the web. Enter Cloud NAT:
 
-##### Networking -> Network Services -> Cloud NAT
+> Networking -> Network Services -> Cloud NAT
 
 Part of our router configuration, Cloud NAT grants our VM instances Internet connectivity without external IP addresses. This allows for a secure way of provisioning our _kubernetes_ nodes, as we can download container images through NAT without exposing the machines to public Internet.
 In our [definition](https://github.com/nkoson/gke-tutorial/blob/master/gke/network.tf#L40), we set the router to allow automatically allocated addresses and to operate only on our subnetwork, which we set up earlier.
 
 OK, our NAT gives us outbound connectivity, but we’ll need a inbound address for our cheap-o load balancer / ingress / certificate manager all-in-one contraption, **traefik**. We’ll talk about the application in a while, but let’s first make sure that our external static IP addresses are in check:
 
-##### Networking -> VPC network -> External IP addresses
+> Networking -> VPC network -> External IP addresses
 
 There should be two addresses on the list; an automatically generated one in use by our NAT, plus another, currently unused address which is named static-ingress. This is crucial for our cluster to accept connections without an external load balancer, since we can route traffic through to our ingress node using a static IP.
 We’ll be running an application, kubeip, in our cluster to take care of assigning the static address to our ingress node, which we’ll discuss in a short while.
 
 This is a good opportunity to take a look at our firewall settings:
 
-##### Networking -> VPC network -> Firewall rules
+> Networking -> VPC network -> Firewall rules
 
 We have added a single custom rule, which lets inbound traffic through to our ingress node. Notice, how we specify a target for the rule to match only with instances that carry the ingress-pool tag. After all, we only need HTTP(S) traffic to land on our internal load balancer (_traefik_). The custom firewall rule is defined [here](https://github.com/nkoson/gke-tutorial/blob/master/gke/network.tf#L76).
 
@@ -161,7 +162,7 @@ kubectl scale --replicas=0 deployment/kube-dns-autoscaler --namespace=kube-syste
 kubectl scale --replicas=1 deployment/kube-dns --namespace=kube-system
 ```
 
-_kubernetes_ default-backend can go too. We'll be using __nginx__ for this purpose:
+_kubernetes_ default-backend can go too. We'll be using **nginx** for this purpose:
 
 ```shell
 kubectl scale --replicas=0 deployment/l7-default-backend --namespace=kube-system
@@ -178,7 +179,7 @@ After a few minutes, GCP had spun up a new instance from the _web-pool_ instance
 
 ### Deployments
 
-The cluster we're about to launch has three deployments: _nginx_ for serving web content, __kubeIP__ for keeping our ingress node responsive and _traefik_ which serves a dual purpose; routing incoming connections to _nginx_, plus handling SSL. We'll discuss each deployment next.
+The cluster we're about to launch has three deployments: _nginx_ for serving web content, **kubeIP** for keeping our ingress node responsive and _traefik_ which serves a dual purpose; routing incoming connections to _nginx_, plus handling SSL. We'll discuss each deployment next.
 
 ### nginx-web
 
@@ -329,6 +330,6 @@ Now we can add _routes_ to _traefik_ using our new custom resources:
 kubectl create --save-config -f route.yaml
 ```
 
-The two routes now connect the "web" and "websecure" entrypoints (which we set up as arguments for _traefik_) to our `nginx-web` service. We should now be able to see HTML content served to us by _nginx_ when we connect to our static IP address. 
+The two routes now connect the "web" and "websecure" entrypoints (which we set up as arguments for _traefik_) to our `nginx-web` service. We should now be able to see HTML content served to us by _nginx_ when we connect to our static IP address.
 
 Please enjoy your cluster-on-a-budget responsively!
