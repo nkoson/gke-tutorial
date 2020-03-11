@@ -8,19 +8,34 @@ provider "google-beta" {
   credentials = file("keys/gke-tutorial.json")
 }
 
-resource "google_project_service" "service" {
-  for_each = var.enable_service_apis
+resource "google_project_service" "cloudresourcemanager" {
+  project = var.project
+  service = "cloudresourcemanager.googleapis.com"
 
-  project            = var.project
-  service            = each.value
-  disable_on_destroy = false
+  disable_dependent_services = true
+}
+
+resource "google_project_service" "iam" {
+  project    = var.project
+  service    = "iam.googleapis.com"
+  depends_on = [google_project_service.cloudresourcemanager]
+
+  disable_dependent_services = true
+}
+
+resource "google_project_service" "container" {
+  project    = var.project
+  service    = "container.googleapis.com"
+  depends_on = [google_project_service.iam]
+
+  disable_dependent_services = true
 }
 
 resource "google_container_cluster" "k8s" {
   provider           = google
   name               = var.cluster_name
   project            = var.project
-  depends_on         = [google_project_service.service]
+  depends_on         = [google_project_service.container]
   location           = var.location
   logging_service    = var.logging_service
   monitoring_service = var.monitoring_service

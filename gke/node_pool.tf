@@ -1,6 +1,7 @@
 resource "google_container_node_pool" "custom_nodepool" {
   for_each = var.node_pools
 
+  depends_on         = [google_container_cluster.k8s, google_service_account.kluster]
   name               = each.key
   project            = var.project
   location           = var.location

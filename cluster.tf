@@ -4,12 +4,6 @@ locals {
 
 module "cluster" {
 
-  enable_service_apis = [
-    "iam.googleapis.com",
-    "container.googleapis.com",
-    "cloudresourcemanager.googleapis.com"
-  ]
-
   project                             = local.project
   source                              = "./gke"
   region                              = "europe-north1"
