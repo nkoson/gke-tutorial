@@ -33,7 +33,7 @@ spec:
       #      name: traefik-config
       containers:
         - name: traefik
-          image: "traefik:latest"
+          image: "traefik:v2.1.9"
           #volumeMounts:
           #  - mountPath: "/etc/traefik/config"
           #    name: traefik-config
